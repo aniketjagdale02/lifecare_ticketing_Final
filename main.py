@@ -1,35 +1,60 @@
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
-
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, Request, Form, RedirectResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from uuid import uuid4
+import sqlite3
+import uuid
 
 app = FastAPI()
 
+# Mount static files (like CSS, if any)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# Set templates directory
 templates = Jinja2Templates(directory="app/templates")
 
-# In-memory ticket store (can be replaced with database)
-TICKETS = {}
+# Initialize SQLite DB
+def init_db():
+    conn = sqlite3.connect("tickets.db")
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS tickets (
+        id TEXT PRIMARY KEY,
+        customer_name TEXT,
+        email TEXT,
+        contact TEXT,
+        issue_title TEXT,
+        description TEXT,
+        status TEXT,
+        assigned_to TEXT,
+        priority TEXT,
+        category TEXT
+    )''')
+    conn.commit()
+    conn.close()
 
-@app.get("/")
+init_db()
+
+# Route: Dashboard (Home)
+@app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request, "tickets": list(TICKETS.values())})
+    conn = sqlite3.connect("tickets.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM tickets")
+    tickets = c.fetchall()
+    conn.close()
+    return templates.TemplateResponse("dashboard.html", {"request": request, "tickets": tickets})
 
-@app.get("/create")
+# Route: Create Ticket (Form Page)
+@app.get("/create", response_class=HTMLResponse)
 def create_ticket_form(request: Request):
     return templates.TemplateResponse("create_ticket.html", {"request": request})
 
+# Route: Handle Ticket Creation
 @app.post("/create")
 def create_ticket(
-    request: Request,
     customer_name: str = Form(...),
-    email_id: str = Form(...),
-    contact_number: str = Form(...),
+    email: str = Form(...),
+    contact: str = Form(...),
     issue_title: str = Form(...),
     description: str = Form(...),
     status: str = Form(...),
@@ -37,33 +62,32 @@ def create_ticket(
     priority: str = Form(...),
     category: str = Form(...)
 ):
-    ticket_id = str(uuid4())[:8]
-    TICKETS[ticket_id] = {
-        "ticket_id": ticket_id,
-        "customer_name": customer_name,
-        "email_id": email_id,
-        "contact_number": contact_number,
-        "issue_title": issue_title,
-        "description": description,
-        "status": status,
-        "assigned_to": assigned_to,
-        "priority": priority,
-        "category": category
-    }
-    return RedirectResponse("/", status_code=303)
+    ticket_id = str(uuid.uuid4())[:8]
+    conn = sqlite3.connect("tickets.db")
+    c = conn.cursor()
+    c.execute("INSERT INTO tickets VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+              (ticket_id, customer_name, email, contact, issue_title, description, status, assigned_to, priority, category))
+    conn.commit()
+    conn.close()
+    return RedirectResponse("/", status_code=302)
 
-@app.get("/edit/{ticket_id}")
+# Route: Edit ticket (optional)
+@app.get("/edit/{ticket_id}", response_class=HTMLResponse)
 def edit_ticket_form(request: Request, ticket_id: str):
-    ticket = TICKETS.get(ticket_id)
+    conn = sqlite3.connect("tickets.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,))
+    ticket = c.fetchone()
+    conn.close()
     return templates.TemplateResponse("edit_ticket.html", {"request": request, "ticket": ticket})
 
+# Route: Handle ticket update
 @app.post("/edit/{ticket_id}")
-def edit_ticket(
-    request: Request,
+def update_ticket(
     ticket_id: str,
     customer_name: str = Form(...),
-    email_id: str = Form(...),
-    contact_number: str = Form(...),
+    email: str = Form(...),
+    contact: str = Form(...),
     issue_title: str = Form(...),
     description: str = Form(...),
     status: str = Form(...),
@@ -71,22 +95,23 @@ def edit_ticket(
     priority: str = Form(...),
     category: str = Form(...)
 ):
-    if ticket_id in TICKETS:
-        TICKETS[ticket_id] = {
-            "ticket_id": ticket_id,
-            "customer_name": customer_name,
-            "email_id": email_id,
-            "contact_number": contact_number,
-            "issue_title": issue_title,
-            "description": description,
-            "status": status,
-            "assigned_to": assigned_to,
-            "priority": priority,
-            "category": category
-        }
-    return RedirectResponse("/", status_code=303)
+    conn = sqlite3.connect("tickets.db")
+    c = conn.cursor()
+    c.execute('''UPDATE tickets SET
+        customer_name=?, email=?, contact=?, issue_title=?,
+        description=?, status=?, assigned_to=?, priority=?, category=?
+        WHERE id=?''',
+        (customer_name, email, contact, issue_title, description, status, assigned_to, priority, category, ticket_id))
+    conn.commit()
+    conn.close()
+    return RedirectResponse("/", status_code=302)
 
+# Route: Delete ticket
 @app.get("/delete/{ticket_id}")
 def delete_ticket(ticket_id: str):
-    TICKETS.pop(ticket_id, None)
-    return RedirectResponse("/", status_code=303)
+    conn = sqlite3.connect("tickets.db")
+    c = conn.cursor()
+    c.execute("DELETE FROM tickets WHERE id = ?", (ticket_id,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse("/", status_code=302)
