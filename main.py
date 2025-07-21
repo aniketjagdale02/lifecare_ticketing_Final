@@ -1,17 +1,19 @@
-from fastapi import FastAPI, Request, Form, RedirectResponse
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import sqlite3
 import uuid
 
-app = FastAPI()
+app = FastAPI()  # ✅ Define app before any @app.route
 
-# Mount static files (like CSS, if any)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
-
-# Set templates directory
 templates = Jinja2Templates(directory="app/templates")
+
+@app.get("/", response_class=HTMLResponse)
+def dashboard(request: Request):
+    ...
+
 
 # Initialize SQLite DB
 def init_db():
