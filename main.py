@@ -1,19 +1,20 @@
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Request, Form, Depends, RedirectResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from database import SessionLocal, engine
+from database import SessionLocal, engine, Base
 from models import Ticket
-import models
+import uuid
 
-# App & Template setup
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")
 
-# Initialize DB
-models.Base.metadata.create_all(bind=engine)
+# Mount static files and templates
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+# Create DB tables
+Base.metadata.create_all(bind=engine)
 
 # Dependency
 def get_db():
@@ -23,33 +24,38 @@ def get_db():
     finally:
         db.close()
 
+# Home page - Dashboard
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request, db: Session = next(get_db())):
-    tickets = db.query(Ticket).all()
+def dashboard(request: Request, db: Session = Depends(get_db)):
+    tickets = db.query(Ticket).order_by(Ticket.id.desc()).all()
     return templates.TemplateResponse("dashboard.html", {"request": request, "tickets": tickets})
 
+# Create ticket page
 @app.get("/create", response_class=HTMLResponse)
-def create_ticket(request: Request):
+def create_ticket_form(request: Request):
     return templates.TemplateResponse("create_ticket.html", {"request": request})
 
-@app.post("/create", response_class=HTMLResponse)
-def create_ticket_post(
+# Save new ticket
+@app.post("/create")
+def create_ticket(
     request: Request,
     customer_name: str = Form(...),
     email: str = Form(...),
-    contact: str = Form(...),
+    contact_name: str = Form(...),
     issue_title: str = Form(...),
     description: str = Form(...),
     status: str = Form(...),
     assigned_to: str = Form(...),
     priority: str = Form(...),
     category: str = Form(...),
-    db: Session = next(get_db())
+    db: Session = Depends(get_db)
 ):
-    ticket = Ticket(
+    ticket_id = str(uuid.uuid4())[:8]
+    new_ticket = Ticket(
+        ticket_id=ticket_id,
         customer_name=customer_name,
         email=email,
-        contact=contact,
+        contact_name=contact_name,
         issue_title=issue_title,
         description=description,
         status=status,
@@ -57,48 +63,48 @@ def create_ticket_post(
         priority=priority,
         category=category
     )
-    db.add(ticket)
+    db.add(new_ticket)
     db.commit()
-    return RedirectResponse("/", status_code=302)
+    return RedirectResponse("/", status_code=303)
 
+# Edit ticket form
 @app.get("/edit/{ticket_id}", response_class=HTMLResponse)
-def edit_ticket(request: Request, ticket_id: int, db: Session = next(get_db())):
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+def edit_ticket_form(ticket_id: str, request: Request, db: Session = Depends(get_db)):
+    ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
     return templates.TemplateResponse("edit_ticket.html", {"request": request, "ticket": ticket})
 
-@app.post("/edit/{ticket_id}", response_class=HTMLResponse)
-def edit_ticket_post(
-    request: Request,
-    ticket_id: int,
+# Save edited ticket
+@app.post("/edit/{ticket_id}")
+def edit_ticket(
+    ticket_id: str,
     customer_name: str = Form(...),
     email: str = Form(...),
-    contact: str = Form(...),
+    contact_name: str = Form(...),
     issue_title: str = Form(...),
     description: str = Form(...),
     status: str = Form(...),
     assigned_to: str = Form(...),
     priority: str = Form(...),
     category: str = Form(...),
-    db: Session = next(get_db())
+    db: Session = Depends(get_db)
 ):
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
-    if ticket:
-        ticket.customer_name = customer_name
-        ticket.email = email
-        ticket.contact = contact
-        ticket.issue_title = issue_title
-        ticket.description = description
-        ticket.status = status
-        ticket.assigned_to = assigned_to
-        ticket.priority = priority
-        ticket.category = category
-        db.commit()
-    return RedirectResponse("/", status_code=302)
+    ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
+    ticket.customer_name = customer_name
+    ticket.email = email
+    ticket.contact_name = contact_name
+    ticket.issue_title = issue_title
+    ticket.description = description
+    ticket.status = status
+    ticket.assigned_to = assigned_to
+    ticket.priority = priority
+    ticket.category = category
+    db.commit()
+    return RedirectResponse("/", status_code=303)
 
-@app.get("/delete/{ticket_id}", response_class=HTMLResponse)
-def delete_ticket(request: Request, ticket_id: int, db: Session = next(get_db())):
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
-    if ticket:
-        db.delete(ticket)
-        db.commit()
-    return RedirectResponse("/", status_code=302)
+# Delete ticket
+@app.get("/delete/{ticket_id}")
+def delete_ticket(ticket_id: str, db: Session = Depends(get_db)):
+    ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
+    db.delete(ticket)
+    db.commit()
+    return RedirectResponse("/", status_code=303)
