@@ -8,7 +8,7 @@
     <h2>Ticket Dashboard</h2>
     <a href="/create" class="btn btn-success mb-3">Create Ticket</a>
     
-    <table class="table table-striped" id="ticketTable">
+    <table class="table table-striped" id="ticketTable" data-sort-dir="desc">
         <thead>
             <tr>
                 <th scope="col" onclick="sortTable(0)" style="cursor:pointer;">Ticket ID ↑↓</th>
@@ -43,38 +43,31 @@
     </table>
 
     <script>
-        function sortTable(n) {
-            const table = document.getElementById("ticketTable");
-            let switching = true, dir = "asc", switchcount = 0;
+function sortTable(colIndex) {
+    const table = document.getElementById("ticketTable");
+    const tbody = table.tBodies[0];
+    const rows = Array.from(tbody.querySelectorAll("tr"));
 
-            while (switching) {
-                switching = false;
-                const rows = table.rows;
+    let asc = table.getAttribute("data-sort-dir") !== "asc";
+    table.setAttribute("data-sort-dir", asc ? "asc" : "desc");
 
-                for (let i = 1; i < rows.length - 1; i++) {
-                    let shouldSwitch = false;
-                    const x = rows[i].getElementsByTagName("TD")[n];
-                    const y = rows[i + 1].getElementsByTagName("TD")[n];
-
-                    if (
-                        (dir === "asc" && x.innerText.toLowerCase() > y.innerText.toLowerCase()) ||
-                        (dir === "desc" && x.innerText.toLowerCase() < y.innerText.toLowerCase())
-                    ) {
-                        shouldSwitch = true;
-                        break;
-                    }
-                }
-
-                if (shouldSwitch) {
-                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-                    switching = true;
-                    switchcount++;
-                } else if (switchcount === 0 && dir === "asc") {
-                    dir = "desc";
-                    switching = true;
-                }
-            }
+    rows.sort((a, b) => {
+        const aText = a.children[colIndex].innerText.trim().toLowerCase();
+        const bText = b.children[colIndex].innerText.trim().toLowerCase();
+        
+        if (!isNaN(aText) && !isNaN(bText)) {
+            return asc ? aText - bText : bText - aText;
         }
-    </script>
+
+        return asc 
+            ? aText.localeCompare(bText)
+            : bText.localeCompare(aText);
+    });
+
+    // Re-attach sorted rows
+    rows.forEach(row => tbody.appendChild(row));
+}
+</script>
+
 </body>
 </html>
