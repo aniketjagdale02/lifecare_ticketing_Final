@@ -71,6 +71,8 @@ def edit_ticket_form(request: Request, ticket_id: str):
     c.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,))
     ticket = c.fetchone()
     conn.close()
+    if not ticket:
+        return HTMLResponse("Ticket not found", status_code=404)
     return templates.TemplateResponse("edit_ticket.html", {"request": request, "ticket": ticket})
 
 @app.post("/edit/{ticket_id}")
