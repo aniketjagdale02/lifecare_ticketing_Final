@@ -45,7 +45,7 @@ def dashboard(request: Request, db=Depends(get_db)):
     if not request.session.get("user"):
         return RedirectResponse("/", status_code=302)
     tickets = db.query(Ticket).all()
-    return templates.TemplateResponse("dashboard_ticket.html", {"request": request, "tickets": tickets})
+    return app/templates.TemplateResponse("dashboard_ticket.html", {"request": request, "tickets": tickets})
 
 # ✅ Create Ticket
 @app.get("/create", response_class=HTMLResponse)
