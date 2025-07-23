@@ -14,6 +14,7 @@ app.add_middleware(SessionMiddleware, secret_key="your-secret-key")
 
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
+
 # Initialize database
 init_db()
 
