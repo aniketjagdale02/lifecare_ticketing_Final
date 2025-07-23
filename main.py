@@ -1,18 +1,23 @@
-
+import os
 from fastapi import FastAPI, Form, Request, Depends
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
-from database import SessionLocal, init_db, Ticket
+from app.database import SessionLocal, init_db, Ticket
 
+# Set base path to current directory (app/)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="your-secret-key")
-templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+
+# Initialize database
 init_db()
 
+# Simple credentials (you can change this later)
 VALID_USERNAME = "admin"
 VALID_PASSWORD = "admin123"
 
